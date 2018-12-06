@@ -79,23 +79,23 @@ def process_image(path, fname, save_path, fmat, save=True, handdrawn=False, use_
     return res
 
 
-if __name__ == '__main__':
-    
-    # Parse input
-    parser = argparse.ArgumentParser(description='Property calculation using cxcalc')
-    parser.add_argument('path', type=str, help='path to folder root')
-    parser.add_argument('-f','--format', help='Format of images',
-                        required=False, default='.tif')
-    parser.add_argument('-d', '--delim', required=False,
-                        help='Delimiter for results file', default='\t')
-    parser.add_argument('-s', action='store_false', default=True,
-                    dest='save', help='Don\'t save images')
-    parser.add_argument('-a', action='store_true', default=False,
-                    dest='handdrawn', help='Use handdrawn lines')
-    parser.add_argument('-u', action='store_true', default=False,
-                    dest='use_edges', help='Use edges of channel only')
-    args = parser.parse_args()
-
-    # Run
-    main(args.path, args.format, args.delim, save=args.save,
-         handdrawn=args.handdrawn, use_edges=args.use_edges)
+#if __name__ == '__main__':
+#    
+#    # Parse input
+#    parser = argparse.ArgumentParser(description='Property calculation using cxcalc')
+#    parser.add_argument('path', type=str, help='path to folder root')
+#    parser.add_argument('-f','--format', help='Format of images',
+#                        required=False, default='.tif')
+#    parser.add_argument('-d', '--delim', required=False,
+#                        help='Delimiter for results file', default='\t')
+#    parser.add_argument('-s', action='store_false', default=True,
+#                    dest='save', help='Don\'t save images')
+#    parser.add_argument('-a', action='store_true', default=False,
+#                    dest='handdrawn', help='Use handdrawn lines')
+#    parser.add_argument('-u', action='store_true', default=False,
+#                    dest='use_edges', help='Use edges of channel only')
+#    args = parser.parse_args()
+#
+#    # Run
+#    main(args.path, args.format, args.delim, save=args.save,
+#         handdrawn=args.handdrawn, use_edges=args.use_edges)
