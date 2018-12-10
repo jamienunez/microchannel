@@ -54,13 +54,14 @@ def get_points(line, w):
 
 def exaggerate_bounding_box(img, iterations=2):
     img[img < filters.threshold_otsu(img)] = 0
+    img[img > 0] = 50
     kernel = np.ones((5, 5), np.uint8)
     img = cv2.erode(img, kernel, iterations=2)
-    kernel = np.ones((200, 200), np.uint8)
+#    kernel = np.ones((200, 200), np.uint8)
     img = cv2.dilate(img, kernel, iterations=iterations)
-    img = cv2.erode(img, kernel, iterations=iterations)
-    kernel = np.ones((10, 10), np.uint8)
-    img = cv2.erode(img, kernel)
+#    img = cv2.erode(img, kernel, iterations=iterations)
+#    kernel = np.ones((10, 10), np.uint8)
+#    img = cv2.erode(img, kernel)
     return img
 
 def find_lines_of_box(img, use_edges=False, hd=False):
@@ -68,8 +69,8 @@ def find_lines_of_box(img, use_edges=False, hd=False):
     w = img.shape[1]
     num_points = w / 4
     if use_edges:
-        edges[:, 500:-500] = 0
-        num_points = 500
+        edges[:, 300:-300] = 0
+        num_points = 300
     if hd:
         res = 10
     else:
