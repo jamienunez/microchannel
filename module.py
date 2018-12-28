@@ -31,9 +31,9 @@ def show(img, name=None, vmax=None, vmin=None, cmap='cividis', axis='off', origi
 
 def show_wet_dry(img, val, name=None):    
     temp_img = np.copy(img)
-    ind = np.where(np.logical_and(img > 0, img < val))
+    ind = np.where(np.logical_and(img >= 0, img < val))
     temp_img[ind] = 1
-    ind = np.where(img > val)
+    ind = np.where(img >= val)
     temp_img[ind] = 2
     show(temp_img, name=name)
 
@@ -103,19 +103,28 @@ def get_equation(line, w):
     return m, b
 
 
+#def draw_lines(img, lines):
+#    img = np.copy(img)
+#    for line in lines:
+#        for rho,theta in line:
+#            x1, y1, x2, y2 = get_points([rho, theta], img.shape[1])
+#            cv2.line(img, (x1, y1), (x2, y2), (0, 255, 255), 20)
+#    return img
+
 def draw_lines(img, lines):
     img = np.copy(img)
+    w = img.shape[1]
     for line in lines:
-        for rho,theta in line:
-            x1, y1, x2, y2 = get_points([rho, theta], img.shape[1])
-            cv2.line(img, (x1, y1), (x2, y2), (0, 255, 255), 20)
+        m, b = line
+        x1 = 0; y1 = int(b); x2 = w; y2 = int(m * w + b)
+        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 255), 20)
     return img
 
 
 def stats(img, val):
     img = img[~np.isnan(img)]
     dried_pixels = np.sum(img < val)
-    wet_pixels = np.sum(img > val)
+    wet_pixels = np.sum(img >= val)
     dried_area = float(dried_pixels) * (1. / (resolution ** 2))
     wet_area = float(wet_pixels) * (1. / (resolution ** 2))
     perc = dried_area / (dried_area + wet_area) * 100
@@ -127,7 +136,7 @@ def print_stats(img, val):
     print('%.2f mm2, %.2f mm2, %i perc' % (dried_area, wet_area, perc))
 
 def remove_pixels(img, line, above=True):
-    m, b = get_equation(line, img.shape[1])
+    m, b = line
     x = np.arange(img.shape[1])
     y = m * x + b
     for i in range(len(x)):

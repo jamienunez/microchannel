@@ -29,48 +29,77 @@ def main(path, fmat, delim, save=True, handdrawn=False, use_edges=False):
         f.write('%s%s' % (res, '\n'))
     f.close()
 
-def get_points(img):
-    edges = cv2.Canny(np.copy(img), 0, 1)
-    x = [50, 100, 150, 200, 250, -250, -200, -150, -100, -50]
+def _get_points(edges, x):
     top_y = []
     bot_y = []
     for col in x:
         points = np.where(edges[:, col] > 0)
-        top_y.append(points[0][0])
-        bot_y.append(points[0][-1])
-    return x, top_y, bot_y
-
-def draw_line(img, m, b):
-    x1 = 0
-    x2 = img.shape[1]
-    y1 = f(x1, m, b)
-    y2 = f(x2, m, b)
-    print(x1, x2, y1, y2)
-    cv2.line(img, (x1, y1), (x2, y2), (0, 255, 255), 20)
-    return
+        if len(points[0]) > 0:
+            top_y.append(points[0][0])
+            bot_y.append(points[0][-1])
+        else:
+            top_y.append(np.nan)
+            bot_y.append(np.nan)
+    return np.array(top_y), np.array(bot_y)
     
-from scipy.optimize import curve_fit
+def get_points(img, left=False, right=False):
+    edges = cv2.Canny(np.copy(img), 0, 1)
+    w = img.shape[1]
+    x = [50, 75, 100, 125, 150, 175, 200]
+    for temp in list(reversed(x)):
+        x.append(w - temp)
+    if left:
+        x = x[:len(x) / 2]
+    elif right:
+        x = x[len(x) / 2:]
+    top_y, bot_y = _get_points(edges, x)
+    return np.array(x), np.array(top_y), np.array(bot_y)
 
-def f(x, m, b):
-    return m*x + b
+#def draw_line(img, m, b):
+#    x1 = 0
+#    x2 = img.shape[1]
+#    y1 = int(f(x1, m, b))
+#    y2 = int(f(x2, m, b))
+#    cv2.line(img, (x1, y1), (x2, y2), (0, 255, 255), 20)
+#    return
+
+def _find_line(img, left=False, right=False):
+    x, top_y, bot_y = get_points(img, left=left, right=right)
+    ind = np.array(np.isfinite(top_y), ndmin=1)
+#    print(top_y[ind])
+#    print(bot_y[ind])
+    (m1, b1), r1, _, _, _ = np.polyfit(x[ind], top_y[ind], 1, full=True)
+    (m2, b2), r2, _, _, _ = np.polyfit(x[ind], bot_y[ind], 1, full=True)
+#    print(r1, r2)
+    return [[m1, b1], [m2, b2]], r1 + r2
 
 def find_line(img):
     img = np.copy(img)
-    x, top_y, bot_y = get_points(img)
-    m1, b1 = curve_fit(f, x, top_y)[0]
-    m2, b2 = curve_fit(f, x, bot_y)[0]
-    draw_line(img, m1, b1)
-    draw_line(img, m2, b2)
-    return
+    lines, r = _find_line(img)
+    if r < 200:
+        return lines
+
+    else:
+        lines, r = _find_line(img, right=True)
+        if r < 200:
+            return lines
+
+        else:
+            lines, r = _find_line(img, right=True)
+            if r < 200:
+                return lines
+
+    return None
 
 #def process_image(path, fname, save_path, fmat, save=True, handdrawn=False, use_edges=False):
 
 path = '../InputImages/'
 fmat = '.tif'
-fname = 'completely dried' + fmat
+fname = 'A10_2_S_ch2_t70h' + fmat
 handdrawn = False
-save=False
+save = False
 use_edges = True
+
 # Open image
 og_img = cv2.imread(os.path.join(path, fname))
 img = cv2.cvtColor(np.copy(og_img), cv2.COLOR_BGR2GRAY)
@@ -88,36 +117,38 @@ if handdrawn:  # Grabs lines drawn in handdrawn folder and applies to image
         lines = None  # No handdrawn image found. Ignore this image.
 
 else:  # Handdrawn not being used. Find box with IA tools
-    img = mod.exaggerate_bounding_box(img)
-    find_line(img)
-    mod.show(img)
-#    lines = mod.find_lines_of_box(img, use_edges)
-#
-##    if lines is None:  # First try failed
-##        lines = mod.find_lines_of_box(img, not use_edges)
-#
-#if lines is not None:
-#
-#    # Reduce and reformat line output from HoughLines
-#    lines = lines[:2]
-#    linesl = [list(x[0]) for x in lines]
-#    linesl.sort()
-#
-#    # Remove empty space outside bounding box
-#    img = mod.get_channel(og_img, linesl)
-#
-#    # Split wet and dry regions
-#    val = mod.thresh_img(img)
-#    res = '\t'.join([str(x) for x in mod.stats(img, val)])  # Calc here before split
-#
-#    # Show images
-#    if not save:  # Just show
-#        mod.plot_all_results(None, None, og_img, lines, img, val)
-#    else:
-#        mod.plot_all_results(save_path, fname.replace(fmat, ''), og_img, lines, img, val)
+#    img = mod.exaggerate_bounding_box(img)
 
-    # Report stats
-#    return res
+    # Threshold
+    val = mod.filters.threshold_otsu(img)
+    img[img < val] = 0
+    img[img > 0] = 50
+    kernel = np.ones((3, 3), np.uint8)
+    img = cv2.erode(img, kernel, iterations=2)
+    lines = find_line(img)
+
+    if lines is None:  # First try failed
+        print('Fname:', fname)
+    #        lines = mod.find_lines_of_box(img, not use_edges)
+    
+    if lines is not None:
+        
+        # Remove empty space outside bounding box
+        img = mod.get_channel(og_img, lines)
+    
+        # Split wet and dry regions
+#        val = 49  #mod.thresh_img(img)
+        res = '\t'.join([str(x) for x in mod.stats(img, val)])  # Calc here before split
+    
+        # Show images
+        if not save:  # Just show
+            mod.plot_all_results(None, None, og_img, lines, img, val)
+        else:
+            mod.plot_all_results(save_path, fname.replace(fmat, ''), og_img, lines, img, val)
+            
+#                # Report stats
+#                return res
+#        return ''
 
 
 #if __name__ == '__main__':
