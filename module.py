@@ -46,10 +46,19 @@ def _get_points(edges, x):
     return np.array(top_y), np.array(bot_y)
 
 
-def get_points(img, left=False, right=False):
+def get_points(img, left=False, right=False, start=None, stop=None,
+               step=None):
+    if start is None:
+        start = 20
+    if stop is None:
+        stop = 200
+    if step is None:
+        step = 10
+    
     edges = cv2.Canny(np.copy(img), 0, 1)
     w = img.shape[1]
-    x = [50, 75, 100, 125, 150, 175, 200]
+    #x = [50, 75, 100, 125, 150, 175, 200]
+    x = list(np.arange(start, stop, step))
     for temp in list(reversed(x)):
         x.append(w - temp)
     if left:
@@ -60,28 +69,47 @@ def get_points(img, left=False, right=False):
     return np.array(x), np.array(top_y), np.array(bot_y)
 
 
-def _find_lines(img, left=False, right=False):
-    x, top_y, bot_y = get_points(img, left=left, right=right)
+def _find_lines(img, left=False, right=False, start=None, stop=None,
+                step=None):
+    x, top_y, bot_y = get_points(img, left=left, right=right,
+                                 start=start, stop=stop,
+                                 step=step)
     ind = np.array(np.isfinite(top_y), ndmin=1)
+    if len(x[ind]) == 0:
+        return None, 5000
     (m1, b1), r1, _, _, _ = np.polyfit(x[ind], top_y[ind], 1, full=True)
     (m2, b2), r2, _, _, _ = np.polyfit(x[ind], bot_y[ind], 1, full=True)
+#    print([[m1, b1], [m2, b2]])
+#    print(r1, r2)
+    # Hack to make this fail if lines are too close to be correct
+    if (b2 - b1) < 400 or (b2 - b1) > 625 or abs(m1 - m2) > 0.02:
+        r1 = 5000
+    
+    if r1 > r2:
+        m1 = m2
+    else:
+        m2 = m1
+    print(r1 + r2)
     return [[m1, b1], [m2, b2]], r1 + r2
 
 
-def find_lines(img):
+def find_lines(img, start=None, stop=None, step=None):
     img = np.copy(img)
-    lines, r = _find_lines(img)
-    if r < 200:
+    lines, r = _find_lines(img, start=start, stop=stop,
+                               step=step)
+    if r < 2000:
         return lines
 
     else:
-        lines, r = _find_lines(img, right=True)
-        if r < 200:
+        lines, r = _find_lines(img, right=True, start=start, stop=stop,
+                               step=step)
+        if r < 2000:
             return lines
 
         else:
-            lines, r = _find_lines(img, right=True)
-            if r < 200:
+            lines, r = _find_lines(img, left=True, start=start, stop=stop,
+                               step=step)
+            if r < 2000:
                 return lines
 
     return None
@@ -118,15 +146,85 @@ def draw_lines(img, lines):
     return img
 
 
+def get_cartesian_points(line, w):
+    rho, theta = line
+    a = np.cos(theta)
+    b = np.sin(theta)
+    x0 = a * rho
+    y0 = b * rho
+    x1 = int(x0 + w * (-b))
+    y1 = int(y0 + w * (a))
+    x2 = int(x0 - w * (-b))
+    y2 = int(y0 - w * (a))
+    return x1, y1, x2, y2
+
+
+def get_equation(line, w):
+    rho, theta = line
+    points = get_cartesian_points(line, w)
+    x1, y1, x2, y2 = [float(x) for x in points]
+    m = (y2 - y1) / (x2 - x1)
+    b = y1 - x1 * m
+    return m, b
+
+
+def hough(edges):
+    lines = cv2.HoughLines(edges, 7, np.pi / 180, 400)
+    if lines is None:
+        return None
+
+    lines = [x for x in lines if x[0][1] > 1 and x[0][1] < 2]
+#        lines = [x for x in lines if x[0][0] > 10 and x[0][0] < edges.shape[0] - 10]
+
+#        print(len(lines))
+    if len(lines) < 2:
+        return None
+    temp1 = [x for x in lines[1:] if abs(x[0][0] - lines[0][0][0]) > 450]
+    if len(temp1) == 0:
+        temp1 = [x for x in lines[1:] if abs(x[0][0] - lines[0][0][0]) > 400]
+#        print(len(temp1))
+    temp2 = [x for x in temp1 if abs(x[0][1] - lines[0][0][1]) < 0.01]
+#        print(len(temp2))
+    if len(temp2) == 0:
+        temp2 = [x for x in temp1 if abs(x[0][1] - lines[0][0][1]) < 0.02]
+#            print(len(temp2))
+
+    lines = [lines[0]]
+    lines.extend(temp2)
+    
+    w = edges.shape[1]
+    
+    if len(lines) < 2:
+        return None
+        
+    m1, b1 = get_equation(lines[0][0], w)
+    m2, b2 = get_equation(lines[1][0], w)
+    
+    if b1 > b2:
+        temp1, temp2 = m1, b1
+        m1, b1 = m2, b2
+        m2, b2 = temp1, temp2
+    lines = [[m1, b1], [m2, b2]]
+    
+    return lines
+
+def find_lines_handdrawn(img):
+    edges = cv2.Canny(np.copy(img), 0, 1)
+    return hough(edges)
+    
+
 #%% Reporting functions
 
 def stats(img, val):
     img = img[~np.isnan(img)]
-    dried_pixels = np.sum(img < val)
-    wet_pixels = np.sum(img >= val)
+    dried_pixels = np.sum(img >= val)
+    wet_pixels = np.sum(img < val)
     dried_area = float(dried_pixels) * (1. / (resolution ** 2))
     wet_area = float(wet_pixels) * (1. / (resolution ** 2))
-    perc = dried_area / (dried_area + wet_area) * 100
+    if dried_area + wet_area > 0:
+        perc = dried_area / (dried_area + wet_area) * 100
+    else:
+        perc = 'NA'
     return dried_area, wet_area, perc
 
 
@@ -160,20 +258,32 @@ def show_wet_dry(img, val, name=None):
 
 def plot_all_results(save_path, fname, og_img, lines, img, val):
     if save_path is not None and fname is not None:
-        fname1 = '%s%s_boundingregion' % (save_path, fname)
-        fname2 = '%s%s_channel' % (save_path, fname)
-        fname3 = '%s%s_channel_dryregions' % (save_path, fname)
+        save_name = '%s%s' % (save_path, fname)
     else:
-        fname1 = None
-        fname2 = None
-        fname3 = None
-    show(draw_lines(og_img, lines), name=fname1)
-    if fname1 is None:
+        save_name = None
+    
+    plt.figure(figsize=(5, 5))
+    plt.subplots_adjust(hspace=0.1)
+    
+    plt.subplot(4, 1, 1)
+    show(og_img)
+    
+    plt.subplot(4, 1, 2)
+    show(draw_lines(og_img, lines))
+
+    plt.subplot(4, 1, 3)
+    show(img)
+    
+    plt.subplot(4, 1, 4)
+    show_wet_dry(img, val)
+    
+    if save_name is not None:
+        plt.savefig(save_name, dpi=500, bbox_inches='tight')
+        plt.pause(0.005)
+        plt.ion()
         plt.show()
-    show(img, name=fname2)
-    if fname2 is None:
+        plt.close()
+    else:
         plt.show()
-    show_wet_dry(img, val, name=fname3)
-    if fname3 is None:
-        plt.show()
+
         
