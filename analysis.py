@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-@author: nune558
+Example use of image analysis module
+
+@author: Jamie R. Nunez
+(C) 2019 - Pacific Northwest National Laboratory
 """
 
 # Imports
@@ -40,7 +43,9 @@ def process_image(path, fname, save_path, fmat, save=True):
     
     # Set threshold
     val = mod.find_thresh(img)
-    if path[:51] == 'D:/Data/SoilSFA/chitin_drying experiments_10182018/':
+    
+    # Set manually for some images
+    if 'chitin_drying experiments_10182018' in path:
         if fname in ['B10_1_P_ch1_t25h']:
             val = 32
         elif fname in ['A10_4_S_ch2_t50h']:
@@ -138,29 +143,19 @@ def process_image(path, fname, save_path, fmat, save=True):
 
 if __name__ == '__main__':
     
-#    # Parse input
-#    parser = argparse.ArgumentParser(description='Property calculation using cxcalc')
-#    parser.add_argument('path', type=str, help='path to folder root')
-#    parser.add_argument('-f','--format', help='Format of images',
-#                        required=False, default='.tif')
-#    parser.add_argument('-d', '--delim', required=False,
-#                        help='Delimiter for results file', default='\t')
-#    parser.add_argument('-s', action='store_false', default=True,
-#                    dest='save', help='Don\'t save images')
-#    parser.add_argument('-a', action='store_true', default=False,
-#                    dest='handdrawn', help='Use handdrawn lines')
-#    args = parser.parse_args()
-#
-#    # Run
-#    main(args.path, args.format, args.delim, save=args.save,
-#         handdrawn=args.handdrawn)
-#    path = 'D:/Data/SoilSFA/chitin_drying experiments_10182018/repB/'
-#    path = '../InputImages/new/'
-    for s in ['repC']:
-##        path = 'D:/Data/SoilSFA/chitin_drying experiments_10182018/%s/' % s
-        path = 'D:/Data/SoilSFA/NAG_drying experiments_10112018/%s/' %s
-        fmat = '.tif'
-        delim = '\t'
-        save = True
-            
-        main(path, fmat, delim, save=save)
+    # Parse input
+    parser = argparse.ArgumentParser(description='Property calculation using cxcalc')
+    parser.add_argument('path', type=str, help='path to folder root')
+    parser.add_argument('-f','--format', help='Format of images',
+                        required=False, default='.tif')
+    parser.add_argument('-d', '--delim', required=False,
+                        help='Delimiter for results file', default='\t')
+    parser.add_argument('-s', action='store_false', default=True,
+                    dest='save', help='Don\'t save images')
+    parser.add_argument('-a', action='store_true', default=False,
+                    dest='handdrawn', help='Use handdrawn lines')
+    args = parser.parse_args()
+
+    # Run
+    main(args.path, args.format, args.delim, save=args.save,
+         handdrawn=args.handdrawn)

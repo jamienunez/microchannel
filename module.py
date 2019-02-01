@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Nov 07 16:46:09 2018
+Image analysis module to find microchannel in images.
 
-@author: nune558
+Assumes microchannel has parallel sides and the tilt of the image is less than 60 deg.
+
+@author: Jamie R. Nunez
+(C) 2019 - Pacific Northwest National Laboratory
 """
 
 import cv2
+import matplotlib.cm as cm
+import matplotlib.colors as colors
 import matplotlib.pyplot as plt
 import numpy as np
 from skimage import filters
-import matplotlib.cm as cm
-import matplotlib.colors as colors
 
 resolution = 607  # pixel/mm
 
@@ -54,10 +57,9 @@ def get_points(img, left=False, right=False, start=None, stop=None,
         stop = 200
     if step is None:
         step = 10
-    
+
     edges = cv2.Canny(np.copy(img), 0, 1)
     w = img.shape[1]
-    #x = [50, 75, 100, 125, 150, 175, 200]
     x = list(np.arange(start, stop, step))
     for temp in list(reversed(x)):
         x.append(w - temp)
@@ -71,20 +73,22 @@ def get_points(img, left=False, right=False, start=None, stop=None,
 
 def _find_lines(img, left=False, right=False, start=None, stop=None,
                 step=None):
+
     x, top_y, bot_y = get_points(img, left=left, right=right,
                                  start=start, stop=stop,
                                  step=step)
     ind = np.array(np.isfinite(top_y), ndmin=1)
+
     if len(x[ind]) == 0:
         return None, 5000
+
     (m1, b1), r1, _, _, _ = np.polyfit(x[ind], top_y[ind], 1, full=True)
     (m2, b2), r2, _, _, _ = np.polyfit(x[ind], bot_y[ind], 1, full=True)
-#    print([[m1, b1], [m2, b2]])
-#    print(r1, r2)
+
     # Hack to make this fail if lines are too close to be correct
     if (b2 - b1) < 400 or (b2 - b1) > 625 or abs(m1 - m2) > 0.02:
         r1 = 5000
-    
+
     if r1 > r2:
         m1 = m2
     else:
@@ -174,44 +178,41 @@ def hough(edges):
         return None
 
     lines = [x for x in lines if x[0][1] > 1 and x[0][1] < 2]
-#        lines = [x for x in lines if x[0][0] > 10 and x[0][0] < edges.shape[0] - 10]
 
-#        print(len(lines))
     if len(lines) < 2:
         return None
+
+    # Pick two lines
     temp1 = [x for x in lines[1:] if abs(x[0][0] - lines[0][0][0]) > 450]
     if len(temp1) == 0:
         temp1 = [x for x in lines[1:] if abs(x[0][0] - lines[0][0][0]) > 400]
-#        print(len(temp1))
     temp2 = [x for x in temp1 if abs(x[0][1] - lines[0][0][1]) < 0.01]
-#        print(len(temp2))
     if len(temp2) == 0:
         temp2 = [x for x in temp1 if abs(x[0][1] - lines[0][0][1]) < 0.02]
-#            print(len(temp2))
-
     lines = [lines[0]]
     lines.extend(temp2)
-    
-    w = edges.shape[1]
-    
+
     if len(lines) < 2:
         return None
-        
-    m1, b1 = get_equation(lines[0][0], w)
-    m2, b2 = get_equation(lines[1][0], w)
-    
+
+    # Convert polar function to cartesian
+    m1, b1 = get_equation(lines[0][0], edges.shape[1])
+    m2, b2 = get_equation(lines[1][0], edges.shape[1])
+
+    # Ensure first line is the bottom line
     if b1 > b2:
         temp1, temp2 = m1, b1
         m1, b1 = m2, b2
         m2, b2 = temp1, temp2
     lines = [[m1, b1], [m2, b2]]
-    
+
     return lines
+
 
 def find_lines_handdrawn(img):
     edges = cv2.Canny(np.copy(img), 0, 1)
     return hough(edges)
-    
+
 
 #%% Reporting functions
 
@@ -285,5 +286,3 @@ def plot_all_results(save_path, fname, og_img, lines, img, val):
         plt.close()
     else:
         plt.show()
-
-        
